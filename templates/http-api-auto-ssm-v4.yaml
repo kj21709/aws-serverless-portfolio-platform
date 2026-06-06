@@ -1,0 +1,234 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: HTTP API stack for blog posts, view counter, contact form, and latest AWS news. Lambda values are read from SSM Parameter Store at resource creation time.
+
+Parameters:
+
+  ProjectName:
+    Type: String
+    Default: portfolio
+    Description: SSM path project name used for frontend API URL parameters.
+
+  FetchPostFunctionArnParameterName:
+    Type: String
+    Default: /portfolio/blog/fetch-post-function-arn
+    Description: SSM parameter name containing FetchPostFunction ARN.
+
+  FetchPostFunctionNameParameterName:
+    Type: String
+    Default: /portfolio/blog/fetch-post-function-name
+    Description: SSM parameter name containing FetchPostFunction name.
+
+  ViewCounterFunctionArnParameterName:
+    Type: String
+    Default: /portfolio/viewcounter/function-arn
+    Description: SSM parameter name containing ViewsFunction ARN.
+
+  ViewCounterFunctionNameParameterName:
+    Type: String
+    Default: /portfolio/viewcounter/function-name
+    Description: SSM parameter name containing ViewsFunction name.
+
+  ContactFormFunctionArnParameterName:
+    Type: String
+    Default: /portfolio/contactform/function-arn
+    Description: SSM parameter name containing ContactFormFunction ARN.
+
+  ContactFormFunctionNameParameterName:
+    Type: String
+    Default: /portfolio/contactform/function-name
+    Description: SSM parameter name containing ContactFormFunction name.
+
+  LatestNewsFunctionArnParameterName:
+    Type: String
+    Default: /portfolio/awslatestnews/function-arn
+    Description: SSM parameter name containing latest news website Lambda ARN.
+
+  LatestNewsFunctionNameParameterName:
+    Type: String
+    Default: /portfolio/awslatestnews/function-name
+    Description: SSM parameter name containing latest news website Lambda name.
+
+Resources:
+
+  BlogHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: portfolio-http-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        ExposeHeaders:
+          - "*"
+
+  FetchPostIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - LambdaArn: !Sub "{{resolve:ssm:${FetchPostFunctionArnParameterName}}}"
+      PayloadFormatVersion: "2.0"
+
+  FetchPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      RouteKey: "GET /"
+      Target: !Sub integrations/${FetchPostIntegration}
+
+  ViewCounterIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - LambdaArn: !Sub "{{resolve:ssm:${ViewCounterFunctionArnParameterName}}}"
+      PayloadFormatVersion: "2.0"
+
+  ViewCounterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      RouteKey: "GET /viewcounter"
+      Target: !Sub integrations/${ViewCounterIntegration}
+
+  ContactFormIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - LambdaArn: !Sub "{{resolve:ssm:${ContactFormFunctionArnParameterName}}}"
+      PayloadFormatVersion: "2.0"
+
+  ContactFormRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      RouteKey: "POST /contact"
+      Target: !Sub integrations/${ContactFormIntegration}
+
+  LatestNewsIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - LambdaArn: !Sub "{{resolve:ssm:${LatestNewsFunctionArnParameterName}}}"
+      PayloadFormatVersion: "2.0"
+
+  LatestNewsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      RouteKey: "GET /news"
+      Target: !Sub integrations/${LatestNewsIntegration}
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref BlogHttpApi
+      StageName: "$default"
+      AutoDeploy: true
+
+  AllowHttpApiInvokeFetchPostFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub "{{resolve:ssm:${FetchPostFunctionNameParameterName}}}"
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BlogHttpApi}/*/GET/
+
+  AllowHttpApiInvokeViewCounterFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub "{{resolve:ssm:${ViewCounterFunctionNameParameterName}}}"
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BlogHttpApi}/*/GET/viewcounter
+
+  AllowHttpApiInvokeContactFormFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub "{{resolve:ssm:${ContactFormFunctionNameParameterName}}}"
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BlogHttpApi}/*/POST/contact
+
+  AllowHttpApiInvokeLatestNewsFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub "{{resolve:ssm:${LatestNewsFunctionNameParameterName}}}"
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BlogHttpApi}/*/GET/news
+
+
+  BlogApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/blog/api-url
+      Type: String
+      Value: !GetAtt BlogHttpApi.ApiEndpoint
+      Description: Blog API URL used by frontend config.js.
+
+  ViewCounterApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/viewcounter/api-url
+      Type: String
+      Value: !Sub ${BlogHttpApi.ApiEndpoint}/viewcounter
+      Description: View counter API URL used by frontend config.js.
+
+  ContactApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/contact/api-url
+      Type: String
+      Value: !Sub ${BlogHttpApi.ApiEndpoint}/contact
+      Description: Contact form API URL used by frontend config.js.
+
+  NewsApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/news/api-url
+      Type: String
+      Value: !Sub ${BlogHttpApi.ApiEndpoint}/news
+      Description: Latest AWS news API URL used by frontend config.js.
+
+Outputs:
+
+  HttpApiId:
+    Description: HTTP API ID.
+    Value: !Ref BlogHttpApi
+
+  HttpApiEndpoint:
+    Description: HTTP API endpoint used by website JavaScript files.
+    Value: !GetAtt BlogHttpApi.ApiEndpoint
+
+  BlogPostsUrl:
+    Description: Blog posts endpoint.
+    Value: !GetAtt BlogHttpApi.ApiEndpoint
+
+  ViewCounterUrl:
+    Description: View counter endpoint. Use this value in index.js for the view counter fetch call.
+    Value: !Sub ${BlogHttpApi.ApiEndpoint}/viewcounter
+
+  ContactFormUrl:
+    Description: Contact form endpoint. Use this value in index.js for the contact form POST call.
+    Value: !Sub ${BlogHttpApi.ApiEndpoint}/contact
+
+  LatestNewsUrl:
+    Description: Latest AWS news endpoint. Use this value in aws.js.
+    Value: !Sub ${BlogHttpApi.ApiEndpoint}/news

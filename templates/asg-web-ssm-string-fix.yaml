@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Auto Scaling Group for private EC2 web servers using private AMI and generated config.js from SSM.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: portfolio
+  EnvironmentName:
+    Type: String
+    Default: prod
+  VpcId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/network/vpc-id
+  PrivateSubnetIds:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/network/private-subnet-ids
+  ALBSecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/alb/security-group-id
+  WebTargetGroupArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/alb/web-target-group-arn
+  PrivateAmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Private AMI ID containing the website files and web server software.
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  MinSize:
+    Type: Number
+    Default: 2
+  DesiredCapacity:
+    Type: Number
+    Default: 2
+  MaxSize:
+    Type: Number
+    Default: 4
+  WebRoot:
+    Type: String
+    Default: /var/www/html
+
+Resources:
+  WebInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-${EnvironmentName}-web-instance-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadPortfolioRuntimeConfig
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/blog/api-url
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/viewcounter/api-url
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/contact/api-url
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/news/api-url
+
+  WebInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${ProjectName}-${EnvironmentName}-web-instance-profile
+      Roles:
+        - !Ref WebInstanceRole
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP from ALB to private EC2 web servers
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroupId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-web-sg
+
+  WebLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${ProjectName}-${EnvironmentName}-web-lt
+      LaunchTemplateData:
+        ImageId: !Ref PrivateAmiId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt WebInstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref WebSecurityGroup
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -euxo pipefail
+
+            WEB_ROOT="${WebRoot}"
+            mkdir -p "$WEB_ROOT"
+
+            if command -v dnf >/dev/null 2>&1; then
+              dnf install -y awscli httpd || true
+              systemctl enable --now httpd || true
+            elif command -v yum >/dev/null 2>&1; then
+              yum install -y awscli httpd || true
+              systemctl enable --now httpd || true
+            elif command -v apt-get >/dev/null 2>&1; then
+              apt-get update -y
+              apt-get install -y awscli apache2 || true
+              systemctl enable --now apache2 || true
+            fi
+
+            cat > /usr/local/bin/update-portfolio-config.sh <<'SCRIPT'
+            #!/bin/bash
+            set -euo pipefail
+            WEB_ROOT="${WebRoot}"
+            REGION="${AWS::Region}"
+            PROJECT="${ProjectName}"
+
+            get_param() {
+              aws ssm get-parameter --region "$REGION" --name "$1" --query 'Parameter.Value' --output text 2>/dev/null || echo ""
+            }
+
+            BLOG_API_URL=$(get_param "/$PROJECT/blog/api-url")
+            VIEW_COUNTER_API_URL=$(get_param "/$PROJECT/viewcounter/api-url")
+            CONTACT_API_URL=$(get_param "/$PROJECT/contact/api-url")
+            NEWS_API_URL=$(get_param "/$PROJECT/news/api-url")
+
+            cat > "$WEB_ROOT/config.js" <<EOF_CONFIG
+            window.APP_CONFIG = {
+              BLOG_API_URL: "$BLOG_API_URL",
+              VIEW_COUNTER_API_URL: "$VIEW_COUNTER_API_URL",
+              CONTACT_API_URL: "$CONTACT_API_URL",
+              NEWS_API_URL: "$NEWS_API_URL"
+            };
+            EOF_CONFIG
+            SCRIPT
+
+            chmod +x /usr/local/bin/update-portfolio-config.sh
+            /usr/local/bin/update-portfolio-config.sh
+
+            cat > /etc/systemd/system/portfolio-config-refresh.service <<'EOF_SERVICE'
+            [Unit]
+            Description=Refresh portfolio frontend runtime config.js from SSM Parameter Store
+            After=network-online.target
+            Wants=network-online.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/update-portfolio-config.sh
+            EOF_SERVICE
+
+            cat > /etc/systemd/system/portfolio-config-refresh.timer <<'EOF_TIMER'
+            [Unit]
+            Description=Refresh portfolio runtime config every 5 minutes
+
+            [Timer]
+            OnBootSec=2min
+            OnUnitActiveSec=5min
+            Unit=portfolio-config-refresh.service
+
+            [Install]
+            WantedBy=timers.target
+            EOF_TIMER
+
+            systemctl daemon-reload
+            systemctl enable --now portfolio-config-refresh.timer
+
+  WebAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${ProjectName}-${EnvironmentName}-web-asg
+      VPCZoneIdentifier: !Split [",", !Ref PrivateSubnetIds]
+      MinSize: !Ref MinSize
+      DesiredCapacity: !Ref DesiredCapacity
+      MaxSize: !Ref MaxSize
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 180
+      TargetGroupARNs:
+        - !Ref WebTargetGroupArn
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebLaunchTemplate
+        Version: !GetAtt WebLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-web
+          PropagateAtLaunch: true
+
+  WebAsgNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/web/asg-name
+      Type: String
+      Value: !Ref WebAutoScalingGroup
+
+  WebSecurityGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/web/security-group-id
+      Type: String
+      Value: !Ref WebSecurityGroup
+
+Outputs:
+  AutoScalingGroupName:
+    Value: !Ref WebAutoScalingGroup
+  WebSecurityGroupId:
+    Value: !Ref WebSecurityGroup

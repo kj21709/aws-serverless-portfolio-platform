@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My AWS Portfolio</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Navbar using Bootstrap -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid justify-content-center">
+            <!-- Toggler/collapsible Button -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Collapsible content -->
+            <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
+                <ul class="navbar-nav w-100 justify-content-evenly text-center">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="blog.html">Portfolio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="aws.html">AWS News</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="certs.html">My Certifications</a>
+                    </li>
+                    <li class="nav-item">
+                        <!-- Dark mode button with correct ID -->
+                        <button id="dark-mode-toggle" class="btn btn-primary navbar-darkmode">🌙</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="shadcn-main">
+        <!-- One Unified Content Box -->
+        <div class="content-box">
+            <section class="intro-section">
+                <h1 class="shadcn-heading">My AWSome Website 🚀</h1>
+                <br>
+                <p class="shadcn-text">Welcome to my portfolio website, and thank you for stopping by! I am an avid AWS Cloud enthusiast with a deep passion 
+                  for all things related to cloud computing. On this website, I aim to showcase not just my skills but also my journey in mastering AWS Cloud technologies. 
+                  Whether you're a fellow cloud enthusiast, someone curious about AWS, or just browsing, there's something here for everyone. Through this platform, 
+                  I'll share detailed insights into my various projects, ranging from small-scale experiments to substantial, real-world applications. 
+                  Each project is a testament to my commitment to excellence in cloud computing. This website is built using terraform and features both a CI/CD pipeline 
+                  for both the infrastructure and the website code itself. 
+                  I'll also keep you updated on the latest trends in AWS, sharing tips, tricks, and best practices that I've learned along the way. </p>
+            </section>
+            <br>
+            <!-- View Counter Section and Contact Form inside the same box -->
+            <section class="info-section">
+                <h2 class="shadcn-heading">View Counter 📊</h2>
+                <br>
+                <div id="counter-container" class="shadcn-counter">
+                    <div id="view-count">Views: 0</div>
+                </div>
+                <br>
+                <h2 class="shadcn-heading">Get in touch with me directly! 📧</h2>
+                <br>
+                <div id="contact-form-container" class="shadcn-form">
+                    <form id="contact-form">
+                        <input type="text" id="name" name="Name" placeholder="Your Name" required class="shadcn-input">
+                        <input type="email" id="email" name="Email" placeholder="Your Email" required class="shadcn-input">
+                        <textarea id="message" name="Message" placeholder="Your Message" required class="shadcn-input shadcn-textarea"></textarea>
+                        <div class="centered-section">
+                          <button type="submit" class="shadcn-button">Submit</button>
+                        </div>
+                        <!-- Spinner element (hidden by default) -->
+                        <div id="spinner" class="text-center" style="display: none; margin-top: 1rem;">
+                          <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                          </div>
+                        </div>
+                        <div id="submission-message" class="alert" style="display: none;"></div>
+                      </form>
+                      
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS (for the collapse functionality) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+    <script src="config.js"></script>
+    <script src="index.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+</body>
+
+</html>

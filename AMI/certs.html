@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certifications</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Navbar using Bootstrap -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid justify-content-center">
+            <!-- Toggler/collapsible Button -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Collapsible content -->
+            <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
+                <ul class="navbar-nav w-100 justify-content-evenly text-center">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="blog.html">Portfolio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="aws.html">AWS News</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="certs.html">My Certifications</a>
+                    </li>
+                    <li class="nav-item">
+                        <!-- Dark mode button with correct ID -->
+                        <button id="dark-mode-toggle" class="btn btn-primary navbar-darkmode">🌙</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="shadcn-main">
+        <!-- One Unified Content Box -->
+        <div class="content-box">
+            <section class="intro-section">
+                <h1 class="shadcn-heading">Certifications &#127891;</h1>
+                <p class="shadcn-text">This page showcases a comprehensive list of all my active certifications, earned throughout my professional career. Each certification represents a significant milestone in my journey as a cloud computing expert and demonstrates my deep commitment to staying at the forefront of the industry. From foundational knowledge to advanced specializations, these certifications reflect my expertise in various areas of cloud architecture, security, and development. They not only validate my technical skills but also highlight my dedication to continuous learning and professional growth. I take pride in each achievement, as they are a testament to the hard work, perseverance, and passion I bring to my career.</p>
+            </section>
+            
+            <!-- Certification Section -->
+            <section id="certifications" class="my-4">
+                <h2 class="shadcn-heading">My Certifications &#127891;</h2>
+                <div class="certification-container">
+                    
+                    <div class="certification">
+                        <img src="architectassociate.png" alt="AWS Certified Solutions Architect – Associate badge" class="certification-badge">
+                        <h3 class="certification-title">AWS Certified Solutions Architect – Associate</h3>
+                    </div>
+                    <!-- AWS Architect Associate - copy and paste this section, changing the img tag to match a image of a certification you have, and change the h3 tag to match the certificate you have gained. To get the images on your instance, try giving your ec2 instance S3 permissions, copy the files to an s3 bucket the use s3:Get to copy the file to your filesystem -->
+                    <div class="certification">
+                        <img src="aws-certified-developer-associate-badge.png" alt="AWS Certified Developer – Associate badge" class="certification-badge">
+                        <h3 class="certification-title">AWS Certified Developer – Associate</h3>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS (for the collapse functionality) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+    <script src="config.js"></script>
+    <script src="index.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+
+</html>

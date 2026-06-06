@@ -1,0 +1,280 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Blog microservice with Lambda, S3, and SSM Parameter Store exports.
+
+Parameters:
+
+  UploadObjectsBucketName:
+    Type: String
+    Description: Bucket where raw blog .txt files are uploaded.
+
+  TransformedObjectsBucketName:
+    Type: String
+    Description: Bucket where transformed HTML blog posts are stored.
+
+  ParameterPathPrefix:
+    Type: String
+    Default: /portfolio/blog
+    Description: SSM Parameter Store prefix used to share values with other stacks.
+
+Resources:
+
+  CreatePostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CreatePostPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadUploadBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${UploadObjectsBucketName}
+                  - !Sub arn:aws:s3:::${UploadObjectsBucketName}/*
+              - Sid: WriteTransformedBucket
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${TransformedObjectsBucketName}/*
+              - Sid: LambdaLogging
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  FetchPostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FetchPostPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadProcessedContentBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${TransformedObjectsBucketName}
+                  - !Sub arn:aws:s3:::${TransformedObjectsBucketName}/*
+              - Sid: LambdaLogging
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  TransformedObjectsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TransformedObjectsBucketName
+
+  UploadObjectsBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - AllowS3InvokeCreatePostFunction
+    Properties:
+      BucketName: !Ref UploadObjectsBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt CreatePostFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .txt
+
+  CreatePostFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CreatePostFunction
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt CreatePostRole.Arn
+      MemorySize: 128
+      Timeout: 183
+      Environment:
+        Variables:
+          ProcessedContentBucketName: !Ref TransformedObjectsBucketName
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import datetime
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              s3 = boto3.client("s3")
+              upload_bucket_name = event["Records"][0]["s3"]["bucket"]["name"]
+              processed_content_bucket_name = os.environ["ProcessedContentBucketName"]
+              file_key = event["Records"][0]["s3"]["object"]["key"]
+
+              logger.info(f"Processing file: {file_key}")
+
+              try:
+                  if file_key.endswith(".txt"):
+                      file_obj = s3.get_object(Bucket=upload_bucket_name, Key=file_key)
+                      file_content = file_obj["Body"].read().decode("utf-8")
+
+                      processed_content = f"<div class='blog-post'>{file_content}</div>"
+                      timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                      processed_content_key = f"blog-post-{timestamp}.html"
+
+                      s3.put_object(
+                          Bucket=processed_content_bucket_name,
+                          Key=processed_content_key,
+                          Body=processed_content,
+                          ContentType="text/html"
+                      )
+
+                      logger.info("Text file processed and uploaded successfully.")
+
+                  return {
+                      "statusCode": 200,
+                      "body": json.dumps("Success")
+                  }
+
+              except Exception as e:
+                  logger.error(f"An error occurred: {str(e)}")
+                  raise e
+
+  FetchPostFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: FetchPostFunction
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt FetchPostRole.Arn
+      MemorySize: 128
+      Timeout: 183
+      Environment:
+        Variables:
+          ProcessedContentBucketName: !Ref TransformedObjectsBucketName
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          s3_client = boto3.client("s3")
+
+          def lambda_handler(event, context):
+              bucket_name = os.environ["ProcessedContentBucketName"]
+
+              try:
+                  response = s3_client.list_objects_v2(Bucket=bucket_name)
+                  contents = response.get("Contents", [])
+
+                  combined_html_content = ""
+
+                  for content in contents:
+                      key = content["Key"]
+                      file_obj = s3_client.get_object(Bucket=bucket_name, Key=key)
+                      file_content = file_obj["Body"].read().decode("utf-8")
+                      combined_html_content += file_content + "\n"
+
+                  return {
+                      "statusCode": 200,
+                      "headers": {
+                          "Content-Type": "text/html",
+                          "Access-Control-Allow-Origin": "*",
+                          "Access-Control-Allow-Headers": "*",
+                          "Access-Control-Allow-Methods": "*",
+                          "Access-Control-Expose-Headers": "*"
+                      },
+                      "body": combined_html_content
+                  }
+
+              except Exception as e:
+                  logger.error(f"An error occurred: {str(e)}")
+                  return {
+                      "statusCode": 500,
+                      "headers": {
+                          "Content-Type": "application/json",
+                          "Access-Control-Allow-Origin": "*",
+                          "Access-Control-Allow-Headers": "*",
+                          "Access-Control-Allow-Methods": "*",
+                          "Access-Control-Expose-Headers": "*"
+                      },
+                      "body": json.dumps({"message": "Error fetching blog posts"})
+                  }
+
+  AllowS3InvokeCreatePostFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreatePostFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:aws:s3:::${UploadObjectsBucketName}
+
+  FetchPostFunctionArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/fetch-post-function-arn
+      Type: String
+      Value: !GetAtt FetchPostFunction.Arn
+      Description: ARN for FetchPostFunction Lambda.
+
+  FetchPostFunctionNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/fetch-post-function-name
+      Type: String
+      Value: !Ref FetchPostFunction
+      Description: Name for FetchPostFunction Lambda.
+
+  UploadObjectsBucketNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/upload-bucket-name
+      Type: String
+      Value: !Ref UploadObjectsBucketName
+      Description: Upload bucket name for raw blog posts.
+
+  TransformedObjectsBucketNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/transformed-bucket-name
+      Type: String
+      Value: !Ref TransformedObjectsBucketName
+      Description: Transformed bucket name for processed blog posts.
+
+Outputs:
+
+  ParameterPathPrefix:
+    Description: SSM Parameter Store path prefix used by dependent stacks.
+    Value: !Ref ParameterPathPrefix

@@ -1,0 +1,347 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AWS latest news microservice using DynamoDB, EventBridge, Lambda, and SSM Parameter Store.
+
+Parameters:
+
+  AWSNewsTableName:
+    Type: String
+    Default: AWSNews
+    Description: DynamoDB table name used to store latest AWS news items.
+
+  ParameterPathPrefix:
+    Type: String
+    Default: /portfolio/awslatestnews
+    Description: SSM Parameter Store prefix used to share latest news values with other stacks.
+
+  FeedparserLayerArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p312-feedparser:1
+    Description: Lambda layer ARN that provides the feedparser Python package.
+
+  AWSBlogFeedUrl:
+    Type: String
+    Default: https://aws.amazon.com/blogs/aws/feed/
+    Description: RSS feed URL used by the scheduled news fetch Lambda.
+
+Resources:
+
+  AWSNewsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref AWSNewsTableName
+      AttributeDefinitions:
+        - AttributeName: Date
+          AttributeType: S
+        - AttributeName: Title
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Date
+          KeyType: HASH
+        - AttributeName: Title
+          KeyType: RANGE
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  AWSNewsTableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/table-name
+      Type: String
+      Value: !Ref AWSNewsTable
+      Description: DynamoDB table name used by latest news Lambda functions.
+
+  AWSNewsFeedUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/feed-url
+      Type: String
+      Value: !Ref AWSBlogFeedUrl
+      Description: RSS feed URL used by the scheduled latest news Lambda function.
+
+  UpdateWebpageFunctionArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/function-arn
+      Type: String
+      Value: !GetAtt UpdateWebpageFunction.Arn
+      Description: ARN for the Lambda function used by the website to retrieve latest news.
+
+  UpdateWebpageFunctionNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/function-name
+      Type: String
+      Value: !Ref UpdateWebpageFunction
+      Description: Name of the Lambda function used by the website to retrieve latest news.
+
+  RSSLambdaFunctionArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/rss-function-arn
+      Type: String
+      Value: !GetAtt RSSLambdaFunction.Arn
+      Description: ARN for the scheduled RSS ingestion Lambda function.
+
+  RSSLambdaFunctionNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/rss-function-name
+      Type: String
+      Value: !Ref RSSLambdaFunction
+      Description: Name of the scheduled RSS ingestion Lambda function.
+
+  RSSLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub latest-news-rss-lambda-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: RSSLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadLatestNewsConfigFromParameterStore
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPathPrefix}/table-name
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPathPrefix}/feed-url
+              - Sid: WriteLatestNewsTable
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt AWSNewsTable.Arn
+              - Sid: LambdaLogging
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  RSSLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - AWSNewsTableNameParameter
+      - AWSNewsFeedUrlParameter
+    Properties:
+      FunctionName: RSSLambdaFunction
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt RSSLambdaRole.Arn
+      MemorySize: 128
+      Timeout: 183
+      Environment:
+        Variables:
+          TABLE_NAME_PARAMETER: !Sub ${ParameterPathPrefix}/table-name
+          FEED_URL_PARAMETER: !Sub ${ParameterPathPrefix}/feed-url
+      Layers:
+        - !Ref FeedparserLayerArn
+      Code:
+        ZipFile: |
+          import boto3
+          import datetime
+          import feedparser
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ssm_client = boto3.client("ssm")
+          dynamodb = boto3.resource("dynamodb")
+
+          def get_parameter(name):
+              return ssm_client.get_parameter(Name=name)["Parameter"]["Value"]
+
+          def lambda_handler(event, context):
+              logger.info("Starting AWS latest news RSS ingestion")
+
+              table_name = get_parameter(os.environ["TABLE_NAME_PARAMETER"])
+              feed_url = get_parameter(os.environ["FEED_URL_PARAMETER"])
+
+              table = dynamodb.Table(table_name)
+              feed = feedparser.parse(feed_url)
+
+              for entry in feed.entries[:10]:
+                  date = entry.published_parsed
+                  formatted_date = datetime.datetime(date[0], date[1], date[2]).strftime("%Y%m%d")
+
+                  table.put_item(
+                      Item={
+                          "Date": formatted_date,
+                          "Title": entry.title,
+                          "Summary": entry.summary,
+                          "Link": entry.link
+                      }
+                  )
+                  logger.info("Saved news item: %s", entry.title)
+
+              return {
+                  "statusCode": 200,
+                  "body": json.dumps({"message": "News updated successfully"})
+              }
+
+  LatestNewsScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub latest-news-daily-${AWS::StackName}
+      ScheduleExpression: cron(0 9 * * ? *)
+      State: ENABLED
+      Targets:
+        - Id: TargetFunction
+          Arn: !GetAtt RSSLambdaFunction.Arn
+      EventBusName: default
+
+  AllowEventBridgeInvokeRSSLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RSSLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LatestNewsScheduleRule.Arn
+
+  UpdateWebpageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub latest-news-web-lambda-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: UpdateWebpagePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadLatestNewsConfigFromParameterStore
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPathPrefix}/table-name
+              - Sid: ReadLatestNewsTable
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt AWSNewsTable.Arn
+              - Sid: LambdaLogging
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  UpdateWebpageFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - AWSNewsTableNameParameter
+    Properties:
+      FunctionName: UpdateWebpageFunction
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt UpdateWebpageRole.Arn
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME_PARAMETER: !Sub ${ParameterPathPrefix}/table-name
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ssm_client = boto3.client("ssm")
+          dynamodb = boto3.resource("dynamodb")
+
+          def response(status_code, body):
+              return {
+                  "statusCode": status_code,
+                  "headers": {
+                      "Content-Type": "application/json",
+                      "Access-Control-Allow-Origin": "*",
+                      "Access-Control-Allow-Headers": "*",
+                      "Access-Control-Allow-Methods": "GET,OPTIONS"
+                  },
+                  "body": json.dumps(body)
+              }
+
+          def lambda_handler(event, context):
+              logger.info("Received event: %s", json.dumps(event))
+
+              try:
+                  method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+                  if method == "OPTIONS":
+                      return response(200, {"message": "CORS preflight successful"})
+
+                  table_parameter_name = os.environ["TABLE_NAME_PARAMETER"]
+                  parameter = ssm_client.get_parameter(Name=table_parameter_name)
+                  table_name = parameter["Parameter"]["Value"]
+
+                  table = dynamodb.Table(table_name)
+                  scan_response = table.scan(Limit=25)
+                  items = scan_response.get("Items", [])
+                  sorted_items = sorted(items, key=lambda item: item.get("Date", ""), reverse=True)[:10]
+
+                  return response(200, sorted_items)
+
+              except Exception:
+                  logger.exception("Error retrieving latest AWS news")
+                  return response(500, {"error": "Error retrieving latest AWS news"})
+
+Outputs:
+
+  AWSNewsTableName:
+    Description: DynamoDB table used by the latest news service.
+    Value: !Ref AWSNewsTable
+
+  RSSLambdaFunctionName:
+    Description: Scheduled RSS ingestion Lambda function name.
+    Value: !Ref RSSLambdaFunction
+
+  RSSLambdaFunctionArn:
+    Description: Scheduled RSS ingestion Lambda function ARN.
+    Value: !GetAtt RSSLambdaFunction.Arn
+
+  UpdateWebpageFunctionName:
+    Description: Website latest news Lambda function name.
+    Value: !Ref UpdateWebpageFunction
+
+  UpdateWebpageFunctionArn:
+    Description: Website latest news Lambda function ARN.
+    Value: !GetAtt UpdateWebpageFunction.Arn
+
+  ParameterPathPrefix:
+    Description: SSM Parameter Store path prefix used by dependent stacks.
+    Value: !Ref ParameterPathPrefix

@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: View counter microservice using DynamoDB, Lambda, and SSM Parameter Store.
+
+Parameters:
+
+  ViewCounterTableName:
+    Type: String
+    Default: portfolio-view-counter
+    Description: DynamoDB table name used by the view counter Lambda.
+
+  ParameterPathPrefix:
+    Type: String
+    Default: /portfolio/viewcounter
+    Description: SSM Parameter Store prefix used to share view counter values with other stacks.
+
+Resources:
+
+  ViewCounterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ViewCounterTableName
+      AttributeDefinitions:
+        - AttributeName: PostID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PostID
+          KeyType: HASH
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  ViewCounterTableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/table-name
+      Type: String
+      Value: !Ref ViewCounterTable
+      Description: DynamoDB table name used by the view counter Lambda.
+
+  ViewCounterFunctionArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/function-arn
+      Type: String
+      Value: !GetAtt ViewsFunction.Arn
+      Description: ARN for the view counter Lambda function.
+
+  ViewCounterFunctionNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${ParameterPathPrefix}/function-name
+      Type: String
+      Value: !Ref ViewsFunction
+      Description: Name of the view counter Lambda function.
+
+  ViewCounterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub view-counter-lambda-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ViewCounterLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadViewCounterConfigFromParameterStore
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPathPrefix}/table-name
+              - Sid: ReadWriteViewCounterTable
+                Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt ViewCounterTable.Arn
+              - Sid: LambdaLogging
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  ViewsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - ViewCounterTableNameParameter
+    Properties:
+      FunctionName: ViewsFunction
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt ViewCounterRole.Arn
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME_PARAMETER: !Sub ${ParameterPathPrefix}/table-name
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import os
+          from decimal import Decimal
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ssm_client = boto3.client("ssm")
+          dynamodb = boto3.resource("dynamodb")
+
+          def decimal_default(obj):
+              if isinstance(obj, Decimal):
+                  return int(obj)
+              raise TypeError
+
+          def response(status_code, body):
+              return {
+                  "statusCode": status_code,
+                  "headers": {
+                      "Content-Type": "application/json",
+                      "Access-Control-Allow-Origin": "*",
+                      "Access-Control-Allow-Headers": "*",
+                      "Access-Control-Allow-Methods": "GET,OPTIONS"
+                  },
+                  "body": json.dumps(body, default=decimal_default)
+              }
+
+          def lambda_handler(event, context):
+              logger.info("Received event: %s", json.dumps(event))
+
+              try:
+                  method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+                  if method == "OPTIONS":
+                      return response(200, {"message": "CORS preflight successful"})
+
+                  table_name_parameter = os.environ["TABLE_NAME_PARAMETER"]
+                  parameter = ssm_client.get_parameter(Name=table_name_parameter)
+                  table_name = parameter["Parameter"]["Value"]
+                  table = dynamodb.Table(table_name)
+
+                  post_id = "homepage"
+
+                  update_response = table.update_item(
+                      Key={"PostID": post_id},
+                      UpdateExpression="ADD ViewCount :inc",
+                      ExpressionAttributeValues={":inc": 1},
+                      ReturnValues="UPDATED_NEW"
+                  )
+
+                  view_count = update_response["Attributes"].get("ViewCount", 0)
+                  return response(200, {"ViewCount": view_count})
+
+              except Exception as error:
+                  logger.exception("Error updating view count")
+                  return response(500, {"Error": "Error updating view count"})
+
+Outputs:
+
+  ViewCounterTableName:
+    Description: DynamoDB table used by the view counter service.
+    Value: !Ref ViewCounterTable
+
+  ViewCounterFunctionName:
+    Description: View counter Lambda function name.
+    Value: !Ref ViewsFunction
+
+  ViewCounterFunctionArn:
+    Description: View counter Lambda function ARN.
+    Value: !GetAtt ViewsFunction.Arn
+
+  ParameterPathPrefix:
+    Description: SSM Parameter Store path prefix used by dependent stacks.
+    Value: !Ref ParameterPathPrefix

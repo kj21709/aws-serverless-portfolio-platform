@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Production HTTPS CloudFront to ALB using a custom ALB origin DNS name.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: portfolio
+
+  EnvironmentName:
+    Type: String
+    Default: prod
+
+  WebsiteDomainName:
+    Type: String
+    Default: portfolio.homenub.com
+    Description: Public website domain used by users and CloudFront alternate domain name.
+
+  AlbOriginDomainName:
+    Type: String
+    Default: alb.homenub.com
+    Description: Custom DNS name CloudFront uses to connect to the ALB over HTTPS.
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 public hosted zone ID for homenub.com.
+
+  CloudFrontCertificateArn:
+    Type: String
+    Description: ACM certificate ARN in us-east-1 covering WebsiteDomainName.
+
+  AlbDnsName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/alb/dns-name
+    Description: ALB DNS name from SSM.
+
+  AlbCanonicalHostedZoneId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/alb/canonical-hosted-zone-id
+    Description: ALB canonical hosted zone ID from SSM.
+
+Resources:
+  AlbOriginAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref AlbOriginDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbCanonicalHostedZoneId
+        EvaluateTargetHealth: true
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: AlbOriginAliasRecord
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${ProjectName}-${EnvironmentName}-cloudfront-production-https
+        Aliases:
+          - !Ref WebsiteDomainName
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ALBOrigin
+            DomainName: !Ref AlbOriginDomainName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ALBOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CloudFrontCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  WebsiteAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebsiteDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  WebsiteAliasRecordIpv6:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebsiteDomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  CloudFrontDomainParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/cloudfront/domain-name
+      Type: String
+      Value: !GetAtt CloudFrontDistribution.DomainName
+
+  WebsiteUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/cloudfront/website-url
+      Type: String
+      Value: !Sub https://${WebsiteDomainName}
+
+  AlbOriginDomainParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/alb/origin-domain-name
+      Type: String
+      Value: !Ref AlbOriginDomainName
+
+Outputs:
+  CloudFrontDomainName:
+    Description: CloudFront distribution domain name.
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  WebsiteUrl:
+    Description: Public website URL.
+    Value: !Sub https://${WebsiteDomainName}
+
+  AlbOriginUrl:
+    Description: Custom HTTPS origin URL used by CloudFront.
+    Value: !Sub https://${AlbOriginDomainName}
