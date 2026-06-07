@@ -123,7 +123,7 @@ aws ssm get-parameters \
 
 ```bash
 aws cloudformation deploy \
-  --template-file alb.yaml \
+  --template-file alb-ssm-string-fix.yaml \
   --stack-name portfolio-alb \
   --region us-east-1 \
   --parameter-overrides CertificateArn=arn:aws:acm:us-east-1:843553758024:certificate/b15aab5c-0adb-4724-8f7d-6d70f8ebecf3
@@ -174,3 +174,12 @@ sudo cat /var/www/html/config.js
 sudo /usr/local/bin/update-portfolio-config.sh
 sudo cat /var/www/html/config.js
 ```
+
+Challenge:
+Auto Scaling Group instance refreshes were not picking up UserData changes.
+
+Root Cause:
+The ASG was configured to use an older Launch Template version.
+
+Resolution:
+Updated the ASG to use the latest Launch Template version and performed an instance refresh, allowing new instances to execute the updated UserData and install the CodeDeploy agent successfully.
