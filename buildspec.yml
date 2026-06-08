@@ -3,14 +3,22 @@ version: 0.2
 phases:
   build:
     commands:
-      - echo "===== DEBUG ====="
-      - pwd
-      - ls -la
-      - echo "----- WEBSITE -----"
-      - ls -la website || true
-      - echo "----- FILES -----"
-      - find . -maxdepth 3 -type f | sort
-      
+      - echo "Generating config.js from SSM Parameter Store"
+      - mkdir -p website
+      - BLOG_API_URL=$(aws ssm get-parameter --name "/portfolio/blog/api-url" --query "Parameter.Value" --output text)
+      - VIEW_COUNTER_API_URL=$(aws ssm get-parameter --name "/portfolio/viewcounter/api-url" --query "Parameter.Value" --output text)
+      - CONTACT_API_URL=$(aws ssm get-parameter --name "/portfolio/contact/api-url" --query "Parameter.Value" --output text)
+      - NEWS_API_URL=$(aws ssm get-parameter --name "/portfolio/news/api-url" --query "Parameter.Value" --output text)
+      - |
+        cat > website/config.js <<EOF
+        window.APP_CONFIG = {
+          BLOG_API_URL: "$BLOG_API_URL",
+          VIEW_COUNTER_API_URL: "$VIEW_COUNTER_API_URL",
+          CONTACT_API_URL: "$CONTACT_API_URL",
+          NEWS_API_URL: "$NEWS_API_URL"
+        };
+        EOF
+
 artifacts:
   files:
     - appspec.yml
