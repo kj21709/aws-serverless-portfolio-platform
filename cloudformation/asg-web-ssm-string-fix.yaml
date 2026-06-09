@@ -196,7 +196,7 @@ Resources:
         - !Ref WebTargetGroupArn
       LaunchTemplate:
         LaunchTemplateId: !Ref WebLaunchTemplate
-        Version: !GetAtt WebLaunchTemplate.LatestVersionNumber
+        Version: "$Latest"
       Tags:
         - Key: Name
           Value: !Sub ${ProjectName}-${EnvironmentName}-web

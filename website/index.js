@@ -1,76 +1,78 @@
-// Function to update the view count from the API
+function getRequiredConfigValue(key) {
+  if (!window.APP_CONFIG || !window.APP_CONFIG[key]) {
+    throw new Error(`Missing ${key}. Check /var/www/html/config.js generation from SSM Parameter Store.`);
+  }
+
+  return window.APP_CONFIG[key];
+}
+
 function updateViewCount() {
-  // Replace the URL below with your actual Lambda function URL
-  fetch('FUNCTION_URL_HERE')
+  fetch(getRequiredConfigValue("VIEW_COUNTER_API_URL"))
     .then(response => response.json())
     .then(data => {
       if (data && data.ViewCount !== undefined) {
-        document.getElementById('view-count').innerText = `Views: ${data.ViewCount}`;
+        document.getElementById("view-count").innerText = `Views: ${data.ViewCount}`;
       } else {
-        console.error('Invalid response data:', data);
+        console.error("Invalid response data:", data);
       }
     })
     .catch(error => {
-      console.error('Error fetching view count:', error);
+      console.error("Error fetching view count:", error);
     });
 }
 
-// Function to handle contact form submission
 function submitContactForm(event) {
   event.preventDefault();
 
-  // Show the spinner and disable the submit button
-  var spinner = document.getElementById('spinner');
-  spinner.style.display = 'block';
-  var submitButton = event.target.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
+  const spinner = document.getElementById("spinner");
+  if (spinner) {
+    spinner.style.display = "block";
+  }
 
-  // Capture form data
-  var name = document.getElementById('name').value;
-  var email = document.getElementById('email').value;
-  var message = document.getElementById('message').value;
+  const submitButton = event.target.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
 
-  // Construct the request payload
-  var formData = {
-    name: name,
-    email: email,
-    message: message
+  const formData = {
+    name: document.getElementById("name").value,
+    email: document.getElementById("email").value,
+    message: document.getElementById("message").value
   };
 
-  // Send the data to the Lambda function URL
-  // Replace the URL below with your actual Lambda function URL for handling form submissions
-  fetch('FUNCTION_URL_HERE', {
-    method: 'POST',
+  fetch(getRequiredConfigValue("CONTACT_API_URL"), {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(formData)
   })
     .then(response => response.json())
-    .then(data => {
-      // Handle a successful submission
-      alert('Thank you for your message!');
-      // Optionally, clear the form inputs
-      document.getElementById('contact-form').reset();
+    .then(() => {
+      alert("Thank you for your message!");
+      document.getElementById("contact-form").reset();
     })
     .catch(error => {
-      console.error('Error submitting contact form:', error);
+      console.error("Error submitting contact form:", error);
     })
     .finally(() => {
-      // Hide the spinner and re-enable the submit button
-      spinner.style.display = 'none';
-      submitButton.disabled = false;
+      if (spinner) {
+        spinner.style.display = "none";
+      }
+
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
     });
 }
 
-// Attach event listeners when the DOM is fully loaded
-document.addEventListener('DOMContentLoaded', function() {
-  // Update view count on page load
-  updateViewCount();
+document.addEventListener("DOMContentLoaded", function () {
+  if (document.getElementById("view-count")) {
+    updateViewCount();
+  }
 
-  // Attach the submit event listener to the contact form
-  var contactForm = document.getElementById('contact-form');
+  const contactForm = document.getElementById("contact-form");
   if (contactForm) {
-    contactForm.addEventListener('submit', submitContactForm);
+    contactForm.addEventListener("submit", submitContactForm);
   }
 });
