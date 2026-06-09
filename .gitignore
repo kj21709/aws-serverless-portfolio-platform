@@ -1,4 +1,6 @@
-scripts/
+after_install.sh
+before_install.sh
+start_server.sh
 buildspec-v2.yml
 blog_old.js
 aws_old.js
