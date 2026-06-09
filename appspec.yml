@@ -4,4 +4,9 @@ os: linux
 files:
   - source: website/
     destination: /var/www/html/
-    overwrite: true
+
+hooks:
+  BeforeInstall:
+    - location: scripts/clean_webroot.sh
+      timeout: 300
+      runas: root
