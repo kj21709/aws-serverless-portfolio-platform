@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Checking AWS CLI version"
+      - aws --version
+
+  build:
+    commands:
+      - echo "Validating CloudFormation templates"
+
+      - aws cloudformation validate-template --template-body file://cloudformation/vpc-auto-ssm.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/blog.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/viewcounter.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/contactform-updated-v3.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/awslatestnews-updated-v3.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/http-api-auto-ssm-v4.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/alb-ssm-string-fix.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/asg-web-ssm-string-fix.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/cloudfront-route53-production-https.yaml
+
+      - echo "CloudFormation validation completed successfully."
