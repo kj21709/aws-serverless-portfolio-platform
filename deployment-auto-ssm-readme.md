@@ -183,3 +183,6 @@ The ASG was configured to use an older Launch Template version.
 
 Resolution:
 Updated the ASG to use the latest Launch Template version and performed an instance refresh, allowing new instances to execute the updated UserData and install the CodeDeploy agent successfully.
+
+
+The project uses separate CI/CD pipelines for frontend delivery and infrastructure validation/deployment. Website updates are deployed automatically to EC2 instances in an Auto Scaling Group through CodeDeploy. Infrastructure templates are validated through CodeBuild, then promoted through approval-gated CloudFormation deployment stages.
