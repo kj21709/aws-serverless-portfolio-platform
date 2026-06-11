@@ -1,15 +1,12 @@
 version: 0.2
 
 phases:
-  install:
-    commands:
-      - aws --version
-
   build:
     commands:
       - echo "Deploying backend/application infrastructure stacks..."
 
-      - aws cloudformation deploy \
+      - |
+        aws cloudformation deploy \
           --template-file cloudformation/blog.yaml \
           --stack-name portfolio-blog \
           --region us-east-1 \
@@ -19,14 +16,16 @@ phases:
             TransformedObjectsBucketName=$TRANSFORM_BUCKET \
           --no-fail-on-empty-changeset
 
-      - aws cloudformation deploy \
+      - |
+        aws cloudformation deploy \
           --template-file cloudformation/viewcounter.yaml \
           --stack-name portfolio-viewcounter \
           --region us-east-1 \
           --capabilities CAPABILITY_NAMED_IAM \
           --no-fail-on-empty-changeset
 
-      - aws cloudformation deploy \
+      - |
+        aws cloudformation deploy \
           --template-file cloudformation/contactform-updated-v3.yaml \
           --stack-name portfolio-contact \
           --region us-east-1 \
@@ -34,14 +33,16 @@ phases:
           --parameter-overrides ContactEmail=$CONTACT_EMAIL \
           --no-fail-on-empty-changeset
 
-      - aws cloudformation deploy \
+      - |
+        aws cloudformation deploy \
           --template-file cloudformation/awslatestnews-updated-v3.yaml \
           --stack-name portfolio-news \
           --region us-east-1 \
           --capabilities CAPABILITY_NAMED_IAM \
           --no-fail-on-empty-changeset
 
-      - aws cloudformation deploy \
+      - |
+        aws cloudformation deploy \
           --template-file cloudformation/http-api-auto-ssm-v4.yaml \
           --stack-name portfolio-http-api \
           --region us-east-1 \

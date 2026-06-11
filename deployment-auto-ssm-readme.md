@@ -186,3 +186,6 @@ Updated the ASG to use the latest Launch Template version and performed an insta
 
 
 The project uses separate CI/CD pipelines for frontend delivery and infrastructure validation/deployment. Website updates are deployed automatically to EC2 instances in an Auto Scaling Group through CodeDeploy. Infrastructure templates are validated through CodeBuild, then promoted through approval-gated CloudFormation deployment stages.
+
+
+All runtime configuration and deployment parameters are centrally managed through AWS Systems Manager Parameter Store and consumed by CloudFormation, EC2 UserData, Lambda functions, and CI/CD pipelines.
