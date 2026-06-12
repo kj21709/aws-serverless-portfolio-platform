@@ -189,3 +189,25 @@ The project uses separate CI/CD pipelines for frontend delivery and infrastructu
 
 
 All runtime configuration and deployment parameters are centrally managed through AWS Systems Manager Parameter Store and consumed by CloudFormation, EC2 UserData, Lambda functions, and CI/CD pipelines.
+
+## Final architecture
+
+aws-serverless-portfolio-platform
+│
+├── website/
+│   ├── index.html
+│   ├── blog.html
+│   ├── aws.html
+│   └── ...
+│
+├── cloudformation/
+│   ├── vpc.yaml
+│   ├── alb.yaml
+│   ├── asg.yaml
+│   ├── blog.yaml
+│   ├── viewcounter.yaml
+│   └── ...
+│
+├── buildspec.yml
+├── buildspec-infra-validate.yml
+└── buildspec-infra-deploy-backend.yml
