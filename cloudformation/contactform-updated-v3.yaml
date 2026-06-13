@@ -48,7 +48,7 @@ Resources:
       Name: !Sub ${ParameterPathPrefix}/function-name
       Type: String
       Value: !Ref ContactFormFunction
-      Description: Name of the contact form Lambda function.
+      Description: Name for the contact form Lambda function.
 
   ContactFormLambdaRole:
     Type: AWS::IAM::Role
