@@ -234,3 +234,4 @@ CloudFront serves homenub.com
 ```
 
 That keeps infrastructure, frontend code, and runtime configuration cleanly separated.
+# trigger test
