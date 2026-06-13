@@ -1,0 +1,6 @@
+{
+    "Parameters": {
+      "UploadObjectsBucketName": "upload-bucket-jlojo",
+      "TransformedObjectsBucketName": "transform-bucket-ljoi"
+    }
+  }
