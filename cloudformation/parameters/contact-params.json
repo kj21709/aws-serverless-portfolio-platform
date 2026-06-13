@@ -1,6 +1,5 @@
-[
-    {
-      "ParameterKey": "ContactEmail",
-      "ParameterValue": "kleb.dorelien@gmail.com"
+{
+    "Parameters": {
+      "ContactEmail": "kleb.dorelien@gmail.com"
     }
-  ]
+  }
