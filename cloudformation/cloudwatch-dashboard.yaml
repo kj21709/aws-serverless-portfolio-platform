@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch dashboard for AWS portfolio platform monitoring ALB, EC2 ASG, Lambda, API Gateway, and CloudFront.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: portfolio
+
+  DashboardName:
+    Type: String
+    Default: portfolio-platform-dashboard
+
+  RegionName:
+    Type: String
+    Default: us-east-1
+
+  AutoScalingGroupName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/web/asg-name
+    Description: ASG name stored by the web ASG stack.
+
+  ALBFullName:
+    Type: String
+    Description: ALB full name for CloudWatch metric dimension. Example app/portfolio-prod-alb/abc123.
+
+  ALBTargetGroupFullName:
+    Type: String
+    Description: Target group full name for CloudWatch metric dimension. Example targetgroup/portfolio-prod-web-tg/abc123.
+
+  HttpApiId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/http-api/id
+    Description: HTTP API ID stored by the HTTP API stack.
+
+  CloudFrontDistributionId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/cloudfront/distribution-id
+    Description: CloudFront distribution ID stored by the CloudFront stack.
+
+  BlogFunctionName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/blog/fetch-post-function-name
+
+  ViewCounterFunctionName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/viewcounter/function-name
+
+  ContactFunctionName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/contact/function-name
+
+  NewsFunctionName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /portfolio/news/function-name
+
+Resources:
+  PortfolioDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref DashboardName
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 2,
+              "properties": {
+                "markdown": "# AWS Portfolio Platform Dashboard\nMonitoring ALB traffic, EC2 ASG CPU, Lambda errors, API Gateway requests, and CloudFront requests."
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 2,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${RegionName}",
+                "title": "ALB Requests",
+                "period": 300,
+                "stat": "Sum",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${ALBFullName}" ],
+                  [ ".", "HTTPCode_ELB_5XX_Count", ".", "." ],
+                  [ ".", "HTTPCode_Target_5XX_Count", ".", "." ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 2,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${RegionName}",
+                "title": "EC2 CPU - Auto Scaling Group",
+                "period": 300,
+                "stat": "Average",
+                "metrics": [
+                  [ "AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "${AutoScalingGroupName}" ]
+                ],
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 100
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 8,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${RegionName}",
+                "title": "Lambda Errors",
+                "period": 300,
+                "stat": "Sum",
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${BlogFunctionName}" ],
+                  [ ".", ".", ".", "${ViewCounterFunctionName}" ],
+                  [ ".", ".", ".", "${ContactFunctionName}" ],
+                  [ ".", ".", ".", "${NewsFunctionName}" ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 8,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${RegionName}",
+                "title": "API Gateway Requests",
+                "period": 300,
+                "stat": "Sum",
+                "metrics": [
+                  [ "AWS/ApiGateway", "Count", "ApiId", "${HttpApiId}" ],
+                  [ ".", "4xx", ".", "." ],
+                  [ ".", "5xx", ".", "." ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 14,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-east-1",
+                "title": "CloudFront Requests",
+                "period": 300,
+                "stat": "Sum",
+                "metrics": [
+                  [ "AWS/CloudFront", "Requests", "Region", "Global", "DistributionId", "${CloudFrontDistributionId}" ],
+                  [ ".", "4xxErrorRate", ".", ".", ".", ".", { "stat": "Average" } ],
+                  [ ".", "5xxErrorRate", ".", ".", ".", ".", { "stat": "Average" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 14,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${RegionName}",
+                "title": "ALB Target Health",
+                "period": 300,
+                "stat": "Average",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", "${ALBTargetGroupFullName}", "LoadBalancer", "${ALBFullName}" ],
+                  [ ".", "UnHealthyHostCount", ".", ".", ".", "." ]
+                ]
+              }
+            }
+          ]
+        }
+
+Outputs:
+  DashboardName:
+    Description: CloudWatch dashboard name.
+    Value: !Ref DashboardName
+
+  DashboardUrl:
+    Description: Direct console URL for the dashboard.
+    Value: !Sub https://${RegionName}.console.aws.amazon.com/cloudwatch/home?region=${RegionName}#dashboards:name=${DashboardName}
