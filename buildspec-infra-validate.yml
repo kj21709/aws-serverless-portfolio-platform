@@ -19,5 +19,6 @@ phases:
       - aws cloudformation validate-template --template-body file://cloudformation/alb-ssm-string-fix.yaml
       - aws cloudformation validate-template --template-body file://cloudformation/asg-web-ssm-string-fix.yaml
       - aws cloudformation validate-template --template-body file://cloudformation/cloudfront-route53-production-https.yaml
+      - aws cloudformation validate-template --template-body file://cloudformation/cloudwatch-dashboard.yaml
 
       - echo "CloudFormation validation completed successfully."
