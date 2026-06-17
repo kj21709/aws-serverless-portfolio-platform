@@ -131,9 +131,7 @@ Purpose:
 
 Building this project provided valuable hands on experience with AWS architecture, automation, troubleshooting, and operational monitoring. Below are a few of the key lessons I learned while designing, deploying, and supporting the solution.
 
-* **Auto Scaling Group Not Using Updated UserData**
-
-One issue I encountered was updating my UserData script but not seeing the changes applied to newly launched EC2 instances. After troubleshooting, I discovered that the Auto Scaling Group was still using a previous launch template version.
+* **Auto Scaling Group Not Using Updated UserData** One issue I encountered was updating my UserData script but not seeing the changes applied to newly launched EC2 instances. After troubleshooting, I discovered that the Auto Scaling Group was still using a previous launch template version.
 
 The solution was to update the Auto Scaling Group to use the latest launch template version and perform an instance refresh.
 
@@ -141,9 +139,7 @@ The solution was to update the Auto Scaling Group to use the latest launch templ
 
 ---
 
-* **Dynamic Configuration with Parameter Store**
-
-I initially hardcoded API Gateway endpoints directly into my JavaScript files. As the project grew and API endpoints changed, maintaining those URLs became difficult and required unnecessary code updates.
+* **Dynamic Configuration with Parameter Store** I initially hardcoded API Gateway endpoints directly into my JavaScript files. As the project grew and API endpoints changed, maintaining those URLs became difficult and required unnecessary code updates.
 
 To simplify configuration management, I moved the endpoint values into AWS Systems Manager Parameter Store and generated a dynamic `config.js` file during instance startup.
 
@@ -151,9 +147,7 @@ To simplify configuration management, I moved the endpoint values into AWS Syste
 
 ---
 
-* **CloudFront Caching and Content Updates**
-
-During website deployments, I occasionally noticed that recent changes were not immediately visible even though the deployment completed successfully. After investigating, I found that CloudFront was serving cached content instead of the latest website files.
+* **CloudFront Caching and Content Updates** During website deployments, I occasionally noticed that recent changes were not immediately visible even though the deployment completed successfully. After investigating, I found that CloudFront was serving cached content instead of the latest website files.
 
 The solution was to create CloudFront invalidations after deployments to force CloudFront to refresh cached objects.
 
