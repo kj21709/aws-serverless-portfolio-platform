@@ -2,8 +2,6 @@
 
 ## Overview
 
-## Overview
-
 This project demonstrates the migration of a traditional single server website to a highly available, scalable, secure, and partially serverless AWS architecture. The solution uses Amazon CloudFront, Route 53, an Application Load Balancer (ALB), and an Auto Scaling Group (ASG) to provide resilient traffic routing and automatic scaling across multiple Availability Zones. User requests are routed through CloudFront and the ALB to EC2 instances running in private subnets, improving availability while preventing direct internet access to the web servers.
 
 Security, automation, and operational visibility were key design goals. Access is controlled using least privilege security groups, while backend services leverage Amazon API Gateway, AWS Lambda, DynamoDB, S3, and SNS. Infrastructure is deployed using CloudFormation and CI/CD pipelines, and a centralized CloudWatch Dashboard provides visibility into application health and performance. The result is a production style AWS environment that showcases cloud architecture, Infrastructure as Code, automation, monitoring, troubleshooting, and security best practices.
@@ -131,46 +129,36 @@ Purpose:
 
 ## Lessons Learned
 
-### Auto Scaling Group Launch Template Issue
+Building this project provided valuable hands on experience with AWS architecture, automation, troubleshooting, and operational monitoring. Below are a few of the key lessons I learned while designing, deploying, and supporting the solution.
 
-Problem:
-New instances were not receiving updated UserData changes.
+### Auto Scaling Group Not Using Updated UserData
 
-Root Cause:
-The Auto Scaling Group was not using the latest launch template version during instance refreshes.
+One issue I encountered was updating my UserData script but not seeing the changes applied to newly launched EC2 instances. After troubleshooting, I discovered that the Auto Scaling Group was still using a previous launch template version.
 
-Resolution:
-Updated the ASG to use the latest launch template version and performed a refresh.
+The solution was to update the Auto Scaling Group to use the latest launch template version and perform an instance refresh.
 
-Lesson:
-Updating a launch template does not automatically update the ASG configuration.
+**Lesson Learned:** Updating a launch template does not automatically update an Auto Scaling Group. It is important to verify which launch template version the ASG is using when troubleshooting instance configuration issues.
 
-### Change Set Approval Emails
+---
 
-Problem:
-Approval emails were not received consistently from the manual approval stage.
+### Dynamic Configuration with Parameter Store
 
-Investigation:
-SNS subscriptions, topic configuration, and pipeline settings were validated.
+I initially hardcoded API Gateway endpoints directly into my JavaScript files. As the project grew and API endpoints changed, maintaining those URLs became difficult and required unnecessary code updates.
 
-Resolution:
-Approvals were performed directly from the CodePipeline console.
+To simplify configuration management, I moved the endpoint values into AWS Systems Manager Parameter Store and generated a dynamic `config.js` file during instance startup.
 
-Lesson:
-Operational processes should not rely solely on email notifications.
+**Lesson Learned:** Separating configuration from application code makes deployments easier, reduces manual updates, and provides a more scalable solution for managing environment specific settings.
 
-### Dynamic Configuration
+---
 
-Problem:
-API URLs were initially hardcoded in frontend code. Having to manually update site with API URL was time consuming and error prone. 
+### CloudFront Caching and Content Updates
 
-Resolution:
-As a work around, I dynamically generated config.js from user data script and pull required API URL from SSM Parameter Store.
+During website deployments, I occasionally noticed that recent changes were not immediately visible even though the deployment completed successfully. After investigating, I found that CloudFront was serving cached content instead of the latest website files.
 
-Lesson:
-Centralized configuration dramatically simplifies deployments and environment management.
+The solution was to create CloudFront invalidations after deployments to force CloudFront to refresh cached objects.
 
-## CloudWatch Dashboard
+**Lesson Learned:** Successful deployments do not always guarantee users will immediately see updated content. Understanding how CloudFront caching works is essential for troubleshooting website updates and ensuring users receive the latest version of the application.
+
 
 ## CloudWatch Dashboard
 
@@ -188,7 +176,7 @@ As I worked through various deployment and troubleshooting challenges, I realize
 
 Many portfolio projects focus primarily on infrastructure deployment and automation. However, operating and supporting an application after deployment is equally important. This dashboard provides a centralized view of system health, performance, and traffic patterns, enabling faster troubleshooting and root cause analysis when issues occur.
 
-As a Sr. IT Analyst, much of my day-to-day work involves monitoring systems, investigating incidents, and performing root cause analysis. Adding the CloudWatch Dashboard allowed me to apply that same operational mindset to this project while demonstrating how observability and monitoring are critical components of a production-ready cloud environment.
+As a Sr. IT Analyst, much of my day-to-day work involves monitoring systems, investigating incidents, and performing root cause analysis. Adding the CloudWatch Dashboard allowed me to apply that same operational mindset to this project while demonstrating how observability and monitoring are critical components of a production ready cloud environment.
 
 
 ## Skills Demonstrated
@@ -213,9 +201,12 @@ As a Sr. IT Analyst, much of my day-to-day work involves monitoring systems, inv
 
 ## Future Enhancements
 
-* CloudWatch Alarms & SNS Notifications – Add automated alerts for critical application and infrastructure events.
+These are a few of the enhancements I would like to add in a future iteration of the project.
 
-* AWS WAF Integration – Protect the application from common web attacks and malicious traffic.
+* **CloudWatch Alarms & SNS Notifications** – Add automated alerts for critical application and infrastructure events.
 
-* Multi-Region Deployment – Improve resiliency and disaster recovery by deploying the solution to an additional AWS Region.
+* **AWS WAF Integration** – Protect the application from common web attacks and malicious traffic.
+
+* **Multi-Region Deployment** – Improve resiliency and disaster recovery by deploying the solution to an additional AWS Region.
+
 
