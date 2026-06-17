@@ -1,238 +1,169 @@
-# AWS Portfolio Website Deployment Guide
+# AWS Serverless Portfolio Platform
 
-This project deploys the network and web-hosting layer for the AWS portfolio website shown in the architecture diagram. The design keeps the public entry points at CloudFront and the Application Load Balancer, while the EC2 web servers run inside private subnets across two Availability Zones.
+## Overview
 
-## Architecture Summary
+This project demonstrates the migration of a traditional single-server portfolio website into a highly available, scalable, and partially serverless AWS architecture.
 
-The website uses this flow:
-
-```text
-User
-  -> Route 53: homenub.com
-  -> CloudFront
-  -> Public Application Load Balancer
-  -> EC2 Auto Scaling Group in private subnets
-  -> JavaScript frontend calls API Gateway routes
-  -> Lambda backend services
-```
-
-The frontend no longer hardcodes API Gateway URLs inside `blog.js`, `index.js`, or `aws.js`. Instead, all frontend JavaScript reads from `config.js`:
-
-```javascript
-window.APP_CONFIG = {
-  BLOG_API_URL: "...",
-  VIEW_COUNTER_API_URL: "...",
-  CONTACT_API_URL: "...",
-  NEWS_API_URL: "..."
-};
-```
-
-The ASG user data creates and refreshes `/var/www/html/config.js` by pulling these values from SSM Parameter Store:
+## Architecture
 
 ```text
-/portfolio/blog/api-url
-/portfolio/viewcounter/api-url
-/portfolio/contact/api-url
-/portfolio/news/api-url
+aws-serverless-portfolio-platform
+│
+├── website/
+│   ├── index.html
+│   ├── blog.html
+│   ├── aws.html
+│   └── ...
+│
+├── cloudformation/
+│   ├── vpc.yaml
+│   ├── alb.yaml
+│   ├── asg.yaml
+│   ├── blog.yaml
+│   ├── viewcounter.yaml
+│   └── ...
+│
+├── buildspec.yml
+├── buildspec-infra-validate.yml
+└── buildspec-infra-deploy-backend.yml
 ```
 
-## Important Design Notes
+## Screenshots
 
-The Auto Scaling Group spans two Availability Zones in one AWS Region, not two AWS Regions. This matches the diagram pattern with `us-east-1a` and `us-east-1b` private subnets.
+### Architecture Diagram
+> Insert architecture-diagram.png
 
-CloudFront requires its ACM certificate to be in `us-east-1`. The ALB certificate must be in the same Region as the ALB. If the whole environment is deployed in `us-east-1`, the same certificate can cover both, assuming it includes `homenub.com`.
+### CloudWatch Dashboard
+> Insert cloudwatch-dashboard.png
 
-## Files Included
+### Website CI/CD Pipeline
+> Insert website-pipeline.png
 
-| File | Purpose |
-|---|---|
-| `vpc.yaml` | Creates VPC, 2 public subnets, 2 private subnets, Internet Gateway, NAT Gateway, and SSM network parameters. |
-| `alb.yaml` | Creates the internet-facing ALB, HTTPS listener, target group, and SSM ALB parameters. |
-| `asg-web.yaml` | Creates private EC2 web servers using your private AMI, an ASG across two private subnets, instance role, and generated `config.js`. |
-| `cloudfront-route53.yaml` | Creates CloudFront distribution and Route 53 alias records for `homenub.com`. |
-| `config.js` | Local placeholder config file. The running EC2 instances generate the real version from SSM. |
-| `index-config-updated.js` | Updated home page JavaScript using `window.APP_CONFIG`. |
-| `blog-config-updated.js` | Updated blog JavaScript using `window.APP_CONFIG`. |
-| `aws-config-updated.js` | Updated AWS News JavaScript using `window.APP_CONFIG`. |
+### Infrastructure CI/CD Pipeline
+> Insert infra-pipeline.png
 
-## Deployment Prerequisites
+## Business Problem
 
-Before deploying these stacks, confirm the following:
+The original application relied on a single server and manual deployment processes. The objective was to redesign the platform using AWS services while introducing scalability, automation, monitoring, and deployment controls.
 
-1. You have a Route 53 public hosted zone for `homenub.com`.
-2. You have an ACM certificate for `homenub.com`.
-3. The CloudFront certificate exists in `us-east-1`.
-4. Your private AMI already contains the website files and web server software, or the ASG user data can install/start Apache successfully.
-5. Your backend stacks have already written these SSM parameters:
+## Solution Highlights
 
-```bash
-aws ssm get-parameters \
-  --names \
-    /portfolio/blog/api-url \
-    /portfolio/viewcounter/api-url \
-    /portfolio/contact/api-url \
-    /portfolio/news/api-url
-```
+- CloudFront + Route 53 for global content delivery
+- Application Load Balancer and Auto Scaling Group
+- Serverless backend services using Lambda and API Gateway
+- SSM Parameter Store for centralized configuration
+- CloudFormation Infrastructure as Code
+- GitHub → CodePipeline → CodeBuild → CodeDeploy automation
+- CloudFormation Change Sets with approval workflow
+- CloudWatch Dashboard for operational monitoring
 
-If any of these are missing, update your backend CloudFormation stacks first.
+## Dynamic Configuration Design
 
-## Step 1: Deploy the VPC Stack
+Instead of hardcoding API URLs in JavaScript, the website loads configuration from config.js.
 
-```bash
-aws cloudformation deploy \
-  --template-file vpc.yaml \
-  --stack-name portfolio-vpc \
-  --region us-east-1
-```
+The Auto Scaling Group UserData script generates config.js dynamically using values stored in Systems Manager Parameter Store.
 
-Verify the network parameters:
+Benefits:
 
-```bash
-aws ssm get-parameters \
-  --names \
-    /portfolio/network/vpc-id \
-    /portfolio/network/public-subnet-ids \
-    /portfolio/network/private-subnet-ids \
-  --region us-east-1
-```
+- No manual API URL updates
+- Consistent configuration across environments
+- Easier maintenance
+- Reduced deployment risk
 
-## Step 2: Deploy the ALB Stack
+## CI/CD Pipelines
 
-Replace the certificate ARN with your ACM certificate ARN.
+### Website Pipeline
 
-```bash
-aws cloudformation deploy \
-  --template-file alb.yaml \
-  --stack-name portfolio-alb \
-  --region us-east-1 \
-  --parameter-overrides \
-    CertificateArn=arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID
-```
+GitHub → CodeBuild → CodeDeploy → Auto Scaling Group
 
-Verify the ALB parameters:
+Purpose:
 
-```bash
-aws ssm get-parameters \
-  --names \
-    /portfolio/alb/security-group-id \
-    /portfolio/alb/dns-name \
-    /portfolio/alb/web-target-group-arn \
-  --region us-east-1
-```
+- Deploy website content
+- Update HTML, CSS, JavaScript
+- Preserve infrastructure
 
-## Step 3: Deploy the Web ASG Stack
+### Infrastructure Pipeline
 
-Replace the AMI ID with your private AMI ID.
+GitHub → Validate → Create Change Set → Manual Approval → Execute Change Set
 
-```bash
-aws cloudformation deploy \
-  --template-file asg-web.yaml \
-  --stack-name portfolio-web-asg \
-  --region us-east-1 \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides \
-    PrivateAmiId=ami-xxxxxxxxxxxxxxxxx
-```
+Purpose:
 
-The instances launch in private subnets and register with the ALB target group.
+- Validate CloudFormation templates
+- Review infrastructure modifications
+- Deploy backend services safely
 
-Check target health:
+## CloudWatch Dashboard
 
-```bash
-aws elbv2 describe-target-health \
-  --target-group-arn $(aws ssm get-parameter \
-    --name /portfolio/alb/web-target-group-arn \
-    --query 'Parameter.Value' \
-    --output text \
-    --region us-east-1) \
-  --region us-east-1
-```
+One of the most valuable additions to the project was a centralized CloudWatch Dashboard.
 
-## Step 4: Deploy CloudFront and Route 53
+Metrics include:
 
-Find your hosted zone ID:
+- ALB Requests
+- EC2 CPU Utilization
+- Lambda Errors
+- API Gateway Requests
+- CloudFront Requests
 
-```bash
-aws route53 list-hosted-zones-by-name \
-  --dns-name homenub.com \
-  --query 'HostedZones[0].Id' \
-  --output text
-```
+Why it matters:
 
-Deploy CloudFront and DNS:
+Many portfolio projects focus only on deployment. This dashboard demonstrates operational ownership by providing visibility into application health, performance, and troubleshooting.
 
-```bash
-aws cloudformation deploy \
-  --template-file cloudfront-route53.yaml \
-  --stack-name portfolio-cloudfront-route53 \
-  --region us-east-1 \
-  --parameter-overrides \
-    DomainName=homenub.com \
-    HostedZoneId=Z123456789ABCDEFG \
-    CloudFrontCertificateArn=arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID
-```
+## Lessons Learned
 
-## Step 5: Update Frontend Files in the Private AMI or Deployment Pipeline
+### Auto Scaling Group Launch Template Issue
 
-Replace the existing JavaScript files with these updated versions:
+Problem:
+New instances were not receiving updated UserData changes.
 
-```text
-index-config-updated.js -> index.js
-blog-config-updated.js  -> blog.js
-aws-config-updated.js   -> aws.js
-```
+Root Cause:
+The Auto Scaling Group was not using the latest launch template version during instance refreshes.
 
-Make sure each HTML page loads `config.js` before the page-specific JavaScript:
+Resolution:
+Updated the ASG to use the latest launch template version and performed a refresh.
 
-```html
-<script src="script.js"></script>
-<script src="config.js"></script>
-<script src="index.js"></script>
-```
+Lesson:
+Updating a launch template does not automatically update the ASG configuration.
 
-For a real CI/CD setup, do not bake changing API URLs into the AMI. Let CodeBuild or EC2 user data generate `config.js` from SSM Parameter Store.
+### Change Set Approval Emails
 
-## Step 6: Test the Website
+Problem:
+Approval emails were not received consistently from the manual approval stage.
 
-Test the ALB first:
+Investigation:
+SNS subscriptions, topic configuration, and pipeline settings were validated.
 
-```bash
-ALB_DNS=$(aws ssm get-parameter \
-  --name /portfolio/alb/dns-name \
-  --query 'Parameter.Value' \
-  --output text \
-  --region us-east-1)
+Resolution:
+Approvals were performed directly from the CodePipeline console.
 
-curl -I https://$ALB_DNS
-```
+Lesson:
+Operational processes should not rely solely on email notifications.
 
-Then test the custom domain:
+### Dynamic Configuration
 
-```bash
-curl -I https://homenub.com
-```
+Problem:
+API URLs were initially hardcoded in frontend code.
 
-Open the browser developer console and confirm:
+Resolution:
+Implemented dynamic config.js generation from SSM Parameter Store.
 
-```javascript
-window.APP_CONFIG
-```
+Lesson:
+Centralized configuration dramatically simplifies deployments and environment management.
 
-You should see the API URLs loaded from `config.js`.
+## Skills Demonstrated
 
-## Recommended Production Improvement
-
-The best long-term pattern is:
-
-```text
-CloudFormation deploys backend APIs
-CloudFormation writes API URLs to SSM
-CodePipeline runs CodeBuild
-CodeBuild generates config.js from SSM
-CodeDeploy pushes website files to the EC2 ASG
-CloudFront serves homenub.com
-```
-
-That keeps infrastructure, frontend code, and runtime configuration cleanly separated.
-# trigger test
-# trigger test2
+- AWS CloudFormation
+- EC2 Auto Scaling
+- Application Load Balancer
+- CloudFront
+- Route 53
+- Lambda
+- API Gateway
+- DynamoDB
+- Systems Manager Parameter Store
+- CloudWatch
+- CodePipeline
+- CodeBuild
+- CodeDeploy
+- Infrastructure as Code
+- Change Management
+- Monitoring and Troubleshooting

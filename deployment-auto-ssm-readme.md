@@ -211,3 +211,62 @@ aws-serverless-portfolio-platform
 ├── buildspec.yml
 ├── buildspec-infra-validate.yml
 └── buildspec-infra-deploy-backend.yml
+
+## Adding dashboard for troubleshooting
+
+
+Deploy command:
+aws cloudformation deploy \
+  --template-file cloudwatch-dashboard.yaml \
+  --stack-name portfolio-cloudwatch-dashboard \
+  --region us-east-1 \
+  --parameter-overrides \
+    ALBFullName="app/portfolio-prod-alb/5e6e6c5efeddebba"
+    ALBTargetGroupFullName="targetgroup/portfolio-prod-web-tg/c11941b15c438629"
+
+Get ALB full name:
+aws elbv2 describe-load-balancers \
+  --region us-east-1 \
+  --query "LoadBalancers[*].[LoadBalancerName,LoadBalancerArn]" \
+  --output table
+Get target group full name:
+aws elbv2 describe-target-groups \
+  --region us-east-1 \
+  --query "TargetGroups[*].[TargetGroupName,TargetGroupArn]" \
+  --output table
+The “full name” is the part after loadbalancer/ or targetgroup/ in the ARN.
+
+## adding missing parameter to parameter store
+
+aws ssm put-parameter \
+  --name /portfolio/cloudfront/distribution-id \
+  --type String \
+  --value E12OCTUK8HVSP9 \
+  --overwrite \
+  --region us-east-1
+
+  aws ssm put-parameter \
+  --name /portfolio/contact/function-name \
+  --type String \
+  --value ContactFormFunction \
+  --overwrite \
+  --region us-east-1
+
+
+  aws ssm put-parameter \
+  --name /portfolio/news/function-name \
+  --type String \
+  --value RSSLambdaFunction \
+  --overwrite \
+  --region us-east-1
+
+
+  aws ssm put-parameter \
+  --name /portfolio/http-api/id \
+  --type String \
+  --value a9ti3icvxh \
+  --overwrite \
+  --region us-east-1
+
+
+  
