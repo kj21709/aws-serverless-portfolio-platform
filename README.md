@@ -137,7 +137,6 @@ The solution was to update the Auto Scaling Group to use the latest launch templ
 
 **Lesson Learned:** Updating a launch template does not automatically update an Auto Scaling Group. It is important to verify which launch template version the ASG is using when troubleshooting instance configuration issues.
 
----
 
 * **Dynamic Configuration with Parameter Store** I initially hardcoded API Gateway endpoints directly into my JavaScript files. As the project grew and API endpoints changed, maintaining those URLs became difficult and required unnecessary code updates.
 
@@ -145,7 +144,6 @@ To simplify configuration management, I moved the endpoint values into AWS Syste
 
 **Lesson Learned:** Separating configuration from application code makes deployments easier, reduces manual updates, and provides a more scalable solution for managing environment specific settings.
 
----
 
 * **CloudFront Caching and Content Updates** During website deployments, I occasionally noticed that recent changes were not immediately visible even though the deployment completed successfully. After investigating, I found that CloudFront was serving cached content instead of the latest website files.
 
