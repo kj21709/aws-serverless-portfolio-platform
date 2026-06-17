@@ -58,19 +58,19 @@ aws-serverless-portfolio-platform
 ![Architecture Diagram](images/AWS-Portfolio-Website-Diagram.png)
 
 ### CloudWatch Dashboard
-![CloudWatch Dashboard](cloudwatch-dashboard.png)
+![CloudWatch Dashboard](images/cloudwatch-dashboard.png)
 
 ### Website CI/CD Pipeline
-![Website Pipeline](website-pipeline.png)
+![Website Pipeline](images/website-pipeline.png)
 
 ### Infrastructure CI/CD Pipeline
-![Infrastructure Pipeline](infra-pipeline.png)
+![Infrastructure Pipeline](images/infra-pipeline.png)
 
 ### Website screenshots
-![Website Home page](home-pg.png)
-![Website blog page](blog.png)
-![Website certs page](certs-pg.png)
-![Website news page](news-pg.png)
+![Website Home page](images/home-pg.png)
+![Website blog page](images/blog.png)
+![Website certs page](images/certs-pg.png)
+![Website news page](images/news-pg.png)
 
 
 ## Business Problem
