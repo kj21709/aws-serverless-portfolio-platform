@@ -7,40 +7,71 @@ This project demonstrates the migration of a traditional single-server portfolio
 ## Architecture
 
 ```text
+
 aws-serverless-portfolio-platform
 │
 ├── website/
 │   ├── index.html
 │   ├── blog.html
 │   ├── aws.html
-│   └── ...
+│   ├── certs.html
+│   ├── config.js
+│   ├── index.js
+│   ├── blog.js
+│   ├── aws.js
+│   └── style.css
 │
 ├── cloudformation/
-│   ├── vpc.yaml
-│   ├── alb.yaml
-│   ├── asg.yaml
+│   ├── vpc-auto-ssm.yaml
+│   ├── alb-ssm-string-fix.yaml
+│   ├── asg-web-ssm-string-fix.yaml
 │   ├── blog.yaml
 │   ├── viewcounter.yaml
-│   └── ...
+│   ├── contactform-updated-v3.yaml
+│   ├── awslatestnews-updated-v3.yaml
+│   ├── http-api-auto-ssm-v4.yaml
+│   ├── cloudfront-route53-production-https.yaml
+│   ├── cloudwatch-dashboard.yaml
+│   └── parameters/
+│       ├── blog-params.json
+│       └── contact-params.json
 │
+├── scripts/
+│   └── clean_webroot.sh
+│
+├── appspec.yml
 ├── buildspec.yml
 ├── buildspec-infra-validate.yml
-└── buildspec-infra-deploy-backend.yml
+├── buildspec-infra-deploy-backend.yml
+├── README.md
+│
+├── Website CI/CD Pipeline
+│   └── GitHub → CodeBuild → CodeDeploy → EC2 Auto Scaling Group
+│
+└── Infrastructure CI/CD Pipeline
+    └── GitHub → Validate → Create Change Set → Approval → Execute Change Set
 ```
 
 ## Screenshots
 
 ### Architecture Diagram
-> Insert architecture-diagram.png
+![Architecture Diagram](images/AWS-Portfolio-Website-Diagram.png)
 
 ### CloudWatch Dashboard
-> Insert cloudwatch-dashboard.png
+![CloudWatch Dashboard](cloudwatch-dashboard.png)
 
 ### Website CI/CD Pipeline
-> Insert website-pipeline.png
+![Website Pipeline](website-pipeline.png)
 
 ### Infrastructure CI/CD Pipeline
-> Insert infra-pipeline.png
+![Infrastructure Pipeline](infra-pipeline.png)
+
+### Website screenshots
+![Website Home page](home-pg.png)
+![Website blog page](blog.png)
+![Website certs page](certs-pg.png)
+![Website news page](news-pg.png)
+
 
 ## Business Problem
 
